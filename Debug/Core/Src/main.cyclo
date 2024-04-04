@@ -1,0 +1,17 @@
+../Core/Src/main.c:124:5:main	8
+../Core/Src/main.c:211:6:off_state	4
+../Core/Src/main.c:230:6:acc_state	9
+../Core/Src/main.c:248:6:ign_state	7
+../Core/Src/main.c:274:6:dcdc_state	7
+../Core/Src/main.c:301:6:on_state	8
+../Core/Src/main.c:328:6:charge_state	7
+../Core/Src/main.c:364:6:fault_state	1
+../Core/Src/main.c:374:6:HAL_GPIO_EXTI_Callback	9
+../Core/Src/main.c:402:6:debugMonitor	1
+../Core/Src/main.c:438:6:SystemClock_Config	3
+../Core/Src/main.c:484:13:MX_ADC1_Init	3
+../Core/Src/main.c:536:13:MX_ADC2_Init	3
+../Core/Src/main.c:588:13:MX_CAN1_Init	2
+../Core/Src/main.c:625:13:MX_DAC_Init	4
+../Core/Src/main.c:672:13:MX_GPIO_Init	1
+../Core/Src/main.c:819:6:Error_Handler	1
