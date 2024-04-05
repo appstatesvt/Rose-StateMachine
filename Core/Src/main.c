@@ -67,6 +67,43 @@ static State_t currentState = OFF;
 static State_t lastState = OFF;
 uint32_t enterStateTime = 0;
 uint32_t currentTime = 0;
+uint32_t extraTime = 0;
+char faultString[255] = "";
+
+/* All faultCodes are two digits, first digit is lastState,
+ second is code, see table below
+
+faultCode = 00: 	No fault
+
+fautlCode = 21: i_keyACC == 0 in IGN
+faultCode = 22: i_disChargeEnable == 0 in IGN
+faultCode = 23: i_ChargeEnable == 0 in IGN
+faultCode = 24: i_killSwitch == 1 in IGN
+faultCode = 29: Undefined fault in IGN
+
+fautlCode = 31: i_keyACC == 0 in DCDC
+faultCode = 32: i_disChargeEnable == 0 in DCDC
+faultCode = 33: i_ChargeEnable == 0 in DCDC
+faultCode = 34: i_killSwitch == 1 in DCDC
+faultCode = 39: Undefined fault in DCDC
+
+fautlCode = 41: i_keyACC == 0 in ON
+faultCode = 42: i_disChargeEnable == 0 in ON -> Charger throw this error
+faultCode = 43: i_ChargeEnable == 0 in ON
+faultCode = 44: i_killSwitch == 1 in DCDC
+faultCode = 49: Undefined fault in ON
+
+fautlCode = 51: i_keyACC == 0 in CHARGE
+faultCode = 52: i_disChargeEnable == 1 in CHARGE
+faultCode = 53: i_ChargeEnable == 0 in CHARGE
+faultCode = 54: i_chargeContactor == 0 in CHARGE
+faultCode = 55: i_killSwitch == 1 in CHARGE
+faultCode = 59: Undefined fault in CHARGE
+
+*/
+uint8_t faultCode = 0;
+uint8_t debugMode = 1;
+uint8_t faultBlinkCounter = 0;
 
 GPIO_PinState i_keyIGN;
 GPIO_PinState i_keyACC;
@@ -193,7 +230,11 @@ int main(void)
 				fault_state();
 				break;
 		}
-	debugMonitor();
+
+	if (1)
+	{
+		debugMonitor();
+	}
 
   }
 }
@@ -223,7 +264,7 @@ void off_state(void){		// State 0
 	// HAL_GPIO_WritePin(faultIndicatorPort,faultIndicator,RESET);
 
 	//Changes States
-	if ((i_keyACC != 0 ) && (i_chargeEnable != 0) && (i_disChargeEnable != 0)){
+	if ((i_keyACC != 0 ) && (i_chargeEnable != 0) && (i_disChargeEnable != 0) && (i_killSwitch != 1)){
 		currentState = ACC;
 	}
 }
@@ -236,8 +277,8 @@ void acc_state(void){		// State 1
 
 	currentTime = HAL_GetTick();
 	// goes back to off if something one wrong
-	if((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 1))
-		currentState = OFF;
+	if((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 1) || (i_killSwitch != 0))
+		currentState = OFF; 			// No fault occurs
 
 	//Changes States
 	if ((i_keyIGN != 0) && (i_disChargeEnable != 0) && (i_keyACC != 0) && (i_chargeEnable != 0))
@@ -256,10 +297,36 @@ void ign_state(void){		// State 2
 	lastState = IGN;
 	currentTime = HAL_GetTick();
 
-	// Check if any signal is missing --> FAULT State
-	if ((i_keyIGN != 1) || (i_disChargeEnable != 1) || (i_keyACC != 1) || (i_chargeEnable != 1))
+	// Key was not hold long enough
+	if (i_keyIGN != 1)
+	{
+		currentState = ACC;
+	}
+	// Check for any missing inputs --> Fault
+	else if ((i_keyACC != 1) || (i_disChargeEnable != 1) || (i_chargeEnable != 1) || (i_killSwitch != 0))
 	{
 		currentState = FAULT;
+		if (i_keyACC != 1)
+		{
+			faultCode = 21;
+		}
+		else if (i_disChargeEnable != 1)
+		{
+			faultCode = 22;
+		}
+		else if (i_chargeEnable != 1)
+		{
+			faultCode = 23;
+		}
+		else if (i_killSwitch != 0)
+		{
+			faultCode = 24;
+		}
+		else
+		{
+			faultCode = 29;
+		}
+
 	}
 	// If 5 sec are gone, activate HVContactor and switch in ON State
 	else if(currentTime - enterStateTime >= 5000)
@@ -285,9 +352,29 @@ void dcdc_state(void){		// State 3
 
 	currentTime = HAL_GetTick();
 	// Check if any signal is missing --> FAULT State
-	if ((i_keyIGN != 1) || (i_disChargeEnable != 1) || (i_keyACC != 1) || (i_chargeEnable != 1))
+	if ((i_keyACC != 1) || (i_disChargeEnable != 1) || (i_chargeEnable != 1) || (i_killSwitch != 0))
 	{
 		currentState = FAULT;
+		if (i_keyACC != 1)
+		{
+			faultCode = 31;
+		}
+		else if (i_disChargeEnable != 1)
+		{
+			faultCode = 32;
+		}
+		else if (i_chargeEnable != 1)
+		{
+			faultCode = 33;
+		}
+		else if (i_killSwitch != 0)
+		{
+			faultCode = 34;
+		}
+		else
+		{
+			faultCode = 39;
+		}
 	}
 	// Switch off the AUX-DCDC after 200 ms
 	else if (currentTime - enterStateTime >= 200)
@@ -314,9 +401,29 @@ void on_state(void){		// State 4
 	// Throttle pedal output function
 
 	// Check if any signal is missing --> FAULT State
-	if ((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 1 && i_chargeContactor != 1))
+	if ((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 1 && i_chargeContactor != 1) || (i_killSwitch != 0))
 	{
 		currentState = FAULT;
+		if (i_keyACC != 1)
+		{
+			faultCode = 41;
+		}
+		else if (i_disChargeEnable != 1)
+		{
+			faultCode = 42;
+		}
+		else if (i_chargeEnable != 1)
+		{
+			faultCode = 43;
+		}
+		else if (i_killSwitch != 0)
+		{
+			faultCode = 44;
+		}
+		else
+		{
+			faultCode = 49;
+		}
 	}
 	//Changes States
 	else if ((i_disChargeEnable != 1) && (i_chargeContactor != 0))
@@ -331,8 +438,9 @@ void charge_state(void){
 	if (lastState == ON)
 	{
 		enterStateTime = HAL_GetTick();
-		lastState = CHARGE;
 	}
+	lastState = CHARGE;
+
 	currentTime = HAL_GetTick();
 
 
@@ -352,9 +460,33 @@ void charge_state(void){
 
 
 	//Changes States
-	if((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 0) || (i_chargeContactor != 1))
+	if((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 0) || (i_chargeContactor != 1) || (i_killSwitch != 0))
 	{
 		currentState = FAULT;
+		if (i_keyACC != 1)
+		{
+			faultCode = 51;
+		}
+		else if (i_disChargeEnable != 0)
+		{
+			faultCode = 52;
+		}
+		else if (i_chargeEnable != 1)
+		{
+			faultCode = 53;
+		}
+		else if (i_chargeContactor != 1)
+		{
+			faultCode = 54;
+		}
+		else if (i_killSwitch != 0)
+		{
+			faultCode = 55;
+		}
+		else
+		{
+			faultCode = 59;
+		}
 	}
 
 }
@@ -362,10 +494,114 @@ void charge_state(void){
 
 
 void fault_state(void){
+
+	// Compare strings for first enter
+	if (strcmp(faultString, ""))
+	{
+		// Fault indicator light on
+		HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
+		o_faultIndicator = GPIO_PIN_SET;
+
+		sprintf(faultString, "\n\n\n\rFAULT!!! FaultTime: %lu -"
+				" old enterStateTime: %lu -- lastState = %d \n\n\n",
+				currentTime, enterStateTime, lastState);
+
+		CDC_Transmit_FS((uint8_t*)faultString, strlen((char*)faultString));
+		debugMode;
+		// Safe enterStateTime for measure 200 ms until HV Contactor will be open
+		enterStateTime = HAL_GetTick();
+	}
+
+	currentTime = HAL_GetTick();
+
+	// Switch AUX-DCDC on
 	HAL_GPIO_WritePin(auxDCDCDisablePort,auxDCDCDisable, GPIO_PIN_RESET);
 	o_auxDCDCDisable = GPIO_PIN_RESET;
-	HAL_GPIO_WritePin(hvDCDCEnablePort,hvDCDCEnable, GPIO_PIN_RESET);
-	o_hvDCDCEnable = GPIO_PIN_RESET;
+
+
+	// Switch of HV-Contactor and HV-DCDC off
+	uint32_t deltaT = currentTime - enterStateTime;
+	if (deltaT >= 500)
+	{
+		// HV-DCDC off
+		HAL_GPIO_WritePin(hvDCDCEnablePort,hvDCDCEnable, GPIO_PIN_RESET);
+		o_hvDCDCEnable = GPIO_PIN_RESET;
+
+		// HV Contactor open
+		HAL_GPIO_WritePin(hvContactorPort, hvContactor, GPIO_PIN_RESET);
+		o_hvDCDCEnable = GPIO_PIN_RESET;
+	}
+
+	// Blinking light math for 2 Hz
+	// Calculating whether light is on or not
+	if (((deltaT + extraTime) / 250) % 4 == 0)
+	{
+		HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_SET);
+		o_faultIndicator = 1;
+	}
+	else if (((deltaT + extraTime) / 250) % 4 == 1)
+	{
+		if (o_faultIndicator == 1)
+		{
+			o_faultIndicator = 0;					// not as an output used here!
+			faultBlinkCounter++;
+			uint8_t highDigit = faultCode / 10;
+			uint8_t lowDigit = faultCode % 10;
+			uint8_t startBlinks = 8;
+			uint8_t betweenBlinks = 3;
+			if (((faultBlinkCounter > startBlinks) &&
+					(faultBlinkCounter <= startBlinks + highDigit)) ||
+					((faultBlinkCounter > startBlinks + highDigit + betweenBlinks) &&
+					(faultBlinkCounter <= startBlinks + highDigit + betweenBlinks + lowDigit)))
+			{
+				extraTime += 500;
+			}
+			if (faultBlinkCounter > startBlinks + highDigit + betweenBlinks + lowDigit)
+			{
+				faultBlinkCounter = 0;
+			}
+		}
+	}
+	else if (((deltaT + extraTime) / 250) % 4 == 3)
+	{
+		HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
+		o_faultIndicator = 0;
+	}
+	else
+	{
+//		uint8_t highDigit = faultCode / 10;
+//		uint8_t lowDigit = faultCode % 10;
+//		uint8_t startBlinks = 8;
+//		uint8_t betweenBlinks = 3;
+//		if (faultBlinkCounter < startBlinks)
+//		{
+//			HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
+//		}
+//		else if (faultBlinkCounter - startBlinks > highDigit)
+//		{
+//			HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_SET);
+//		}
+//		else if (faultBlinkCounter - startBlinks - highDigit > betweenBlinks)
+//		{
+//			HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
+//		}
+//		else if (faultBlinkCounter - startBlinks - highDigit - betweenBlinks > lowDigit)
+//		{
+//			HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_SET);
+//		}
+//		else
+//		{
+//			faultBlinkCounter = 0;
+//		}
+	}
+
+	// Switch off serial monitor in fault state if nothing happens anymore (after 300 ms)
+	if (deltaT >= 1000)
+	{
+		debugMode;
+	}
+
+
 	//FALUT INDICATOR
 
 }
@@ -773,10 +1009,10 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(hvContactorB15_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : spareInput2_Pin spareInput1_Pin spareInput3_Pin keyIGND14_Pin
-                           killSwitch_Pin brakeSwitchInput_Pin OTG_FS_OverCurrent_Pin */
-  GPIO_InitStruct.Pin = spareInput2_Pin|spareInput1_Pin|spareInput3_Pin|keyIGND14_Pin
-                          |killSwitch_Pin|brakeSwitchInput_Pin|OTG_FS_OverCurrent_Pin;
+  /*Configure GPIO pins : spareInput2_Pin spareInput1_Pin spareInput3_Pin killSwitch_Pin
+                           brakeSwitchInput_Pin OTG_FS_OverCurrent_Pin */
+  GPIO_InitStruct.Pin = spareInput2_Pin|spareInput1_Pin|spareInput3_Pin|killSwitch_Pin
+                          |brakeSwitchInput_Pin|OTG_FS_OverCurrent_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);

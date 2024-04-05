@@ -119,8 +119,6 @@ void Error_Handler(void);
 #define LD4_GPIO_Port GPIOD
 #define LD3_Pin GPIO_PIN_13
 #define LD3_GPIO_Port GPIOD
-#define keyIGND14_Pin GPIO_PIN_14
-#define keyIGND14_GPIO_Port GPIOD
 #define LD6_Pin GPIO_PIN_15
 #define LD6_GPIO_Port GPIOD
 #define VBUS_FS_Pin GPIO_PIN_9
@@ -168,7 +166,7 @@ void Error_Handler(void);
 
 // Inputs
 
-#define keyIGN keyIGN_Pin					//PE9
+#define keyIGN keyIGN_Pin					// PE9
 #define keyIGNPort GPIOE
 
 #define keyACC keyACC_Pin					// PE10
@@ -217,7 +215,7 @@ void Error_Handler(void);
 #define chargeIndicatorPort GPIOD
 
 #define faultIndicator faultIndicator_Pin	// PC12
-#define falutIndicatorPort GPIOC
+#define faultIndicatorPort GPIOC
 
 #define hvContactor hvContactor_Pin			// PE12
 #define hvContactorPort GPIOE
