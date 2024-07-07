@@ -151,8 +151,8 @@ void Error_Handler(void);
 #define OTG_FS_OverCurrent_GPIO_Port GPIOD
 #define spareOutput3_Pin GPIO_PIN_6
 #define spareOutput3_GPIO_Port GPIOD
-#define spareOutput1_Pin GPIO_PIN_7
-#define spareOutput1_GPIO_Port GPIOD
+#define NA2_Pin GPIO_PIN_7
+#define NA2_GPIO_Port GPIOD
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 #define canRX_Pin GPIO_PIN_8
@@ -223,14 +223,23 @@ void Error_Handler(void);
 #define preChargeRelay preChargeRelay_Pin	//PE11
 #define preChargeRelayPort GPIOE
 
+//#define preChargeRelay spareOutput1_Pin	//PE11			Re-defined to PD7 to use spare output with U12 Mosfet
+//#define preChargeRelayPort GPIOD
+
+//#define preChargeRelay spareOutput1_Pin		// PD7
+//#define preChargeRelayPort GPIOD
+
 #define pedalDAC pedalDAC_Pin		// PA4 DAC_OUT1
 #define pedalDACPort GPIOA
 
 #define regenDAC regenDAC_Pin		// PA5 DAC_OUT2
 #define regenDACPort GPIOA
 
-#define spareOutput1 spareOutput1_Pin		// PD7
-#define spareOutput1Port GPIOD
+//#define spareOutput1 spareOutput1_Pin		// PD7
+//#define spareOutput1Port GPIOD
+
+#define spareOutput1 preChargeRelay_Pin		// PE11
+#define spareOutput1Port GPIOE
 
 #define spareOutput2 spareOutput2_Pin		// PD0
 #define spareOutput2Port GPIOD

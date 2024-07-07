@@ -40,6 +40,7 @@ typedef enum {
 	CHARGE,
 	FAULT
 } State_t;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -53,7 +54,9 @@ typedef enum {
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+
 ADC_HandleTypeDef hadc1;
+
 ADC_HandleTypeDef hadc2;
 
 CAN_HandleTypeDef hcan1;
@@ -61,6 +64,12 @@ CAN_HandleTypeDef hcan1;
 DAC_HandleTypeDef hdac;
 
 /* USER CODE BEGIN PV */
+
+// const for the Throttle Pedal
+const int MIN_ADC = 630;   //630
+const int MAX_ADC = 3900; //3900
+const int MIN_DAC = 0;
+const int MAX_DAC = 4095;
 
 // sets current state
 static State_t currentState = OFF;
@@ -90,7 +99,7 @@ faultCode = 39: Undefined fault in DCDC
 fautlCode = 41: i_keyACC == 0 in ON
 faultCode = 42: i_disChargeEnable == 0 in ON -> Charger throw this error
 faultCode = 43: i_ChargeEnable == 0 in ON
-faultCode = 44: i_killSwitch == 1 in DCDC
+faultCode = 44: i_killSwitch == 1 in ON
 faultCode = 49: Undefined fault in ON
 
 fautlCode = 51: i_keyACC == 0 in CHARGE
@@ -101,9 +110,8 @@ faultCode = 55: i_killSwitch == 1 in CHARGE
 faultCode = 59: Undefined fault in CHARGE
 
 */
-uint8_t faultCode = 0;
+uint8_t faultCode = 00;
 uint8_t debugMode = 1;
-uint8_t faultBlinkCounter = 0;
 
 GPIO_PinState i_keyIGN;
 GPIO_PinState i_keyACC;
@@ -119,8 +127,21 @@ GPIO_PinState o_chargeIndicator;
 GPIO_PinState o_faultIndicator;
 GPIO_PinState o_hvContactor;
 GPIO_PinState o_preChargeRelay;
-uint8_t o_pedalDAC;
 
+uint16_t o_pedalDAC=0;
+uint16_t i_pedalADC=0;
+
+uint16_t o_regenDAC=0;
+uint16_t i_regenADC=0;
+
+//Can Bus Varibles
+CAN_FilterTypeDef Filter;
+
+CAN_TxHeaderTypeDef TxHeader;
+CAN_RxHeaderTypeDef RxHeader;
+uint8_t TxData[8];
+uint8_t RxData[8];
+uint32_t TxMailbox;
 
 /* USER CODE END PV */
 
@@ -141,17 +162,15 @@ void charge_state(void);
 void fault_state(void);
 void stateMachine_init(void);
 void debugMonitor(void);
-
+void updatePedal(void);
+void updateRegen(void);
+void faultBlinker(void);
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-//void printActivatedVariable(uint8_t activatedVariable) {
-//    char buffer[50];
-//    snprintf(buffer, sizeof(buffer), "Activated variable: %d\r\n", activatedVariable);
-//    CDC_Transmit_FS((uint8_t *)buffer, strlen(buffer));
-//}
+
 /* USER CODE END 0 */
 
 /**
@@ -189,18 +208,21 @@ int main(void)
   MX_CAN1_Init();
   /* USER CODE BEGIN 2 */
 
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
 	  i_keyIGN 				= HAL_GPIO_ReadPin(keyIGNPort, keyIGN);
 	  i_keyACC 				= HAL_GPIO_ReadPin(keyACCPort, keyACC);
-	  i_killSwitch 			= HAL_GPIO_ReadPin(killSwitchPort, killSwitch);
+	  i_killSwitch 			= !HAL_GPIO_ReadPin(killSwitchPort, killSwitch);
 	  i_chargeContactor 	= !HAL_GPIO_ReadPin(chargeContactorPort, chargeContactor);
 	  i_chargeEnable 		= !HAL_GPIO_ReadPin(chargeEnablePort, chargeEnable);
 	  i_disChargeEnable 	= !HAL_GPIO_ReadPin(disChargeEnablePort, disChargeEnable);
@@ -239,16 +261,9 @@ int main(void)
   }
 }
 
+//add brake lights
 
-
-/*
- * 		HAL_GPIO_WritePin(preChargeRelayPort,preChargeRelay,RESET);
-		HAL_GPIO_WritePin(hvContactorPort,hvContactor,RESET);
-		HAL_GPIO_WritePin(auxDCDCDisablePort,auxDCDCDisable,RESET);
-		HAL_GPIO_WritePin(hvDCDCEnablePort,hvDCDCEnable,RESET);
- * 		HAL_GPIO_WritePin(GPIO(charge indicator
- * 		HAL_GPIO_WritePin(GPIO(Fault INDECATOR
- */
+//Initial setting of bits
 void off_state(void){		// State 0
 	currentTime = HAL_GetTick();
 	lastState = ON;
@@ -260,23 +275,34 @@ void off_state(void){		// State 0
 	o_auxDCDCDisable = GPIO_PIN_RESET;
 	HAL_GPIO_WritePin(hvDCDCEnablePort,hvDCDCEnable,GPIO_PIN_RESET);
 	o_hvDCDCEnable = GPIO_PIN_RESET;
-	// HAL_GPIO_WritePin(chargeIndicatorPort,chargeIndicator,RESET);
-	// HAL_GPIO_WritePin(faultIndicatorPort,faultIndicator,RESET);
-
+	HAL_GPIO_WritePin(chargeIndicatorPort,chargeIndicator,RESET);
+	o_chargeIndicator = GPIO_PIN_RESET;
+	HAL_GPIO_WritePin(faultIndicatorPort,faultIndicator,RESET);
+	o_faultIndicator = GPIO_PIN_RESET;
 	//Changes States
 	if ((i_keyACC != 0 ) && (i_chargeEnable != 0) && (i_disChargeEnable != 0) && (i_killSwitch != 1)){
 		currentState = ACC;
 	}
 }
+
+
 void acc_state(void){		// State 1
-	if( lastState == ON )
+	if( lastState != ACC)
 	{
 		enterStateTime = HAL_GetTick();
+		HAL_GPIO_WritePin(preChargeRelayPort,preChargeRelay,GPIO_PIN_RESET);
+		o_preChargeRelay = GPIO_PIN_RESET;
+		HAL_GPIO_WritePin(hvContactorPort,hvContactor,GPIO_PIN_RESET);
+		o_hvContactor = GPIO_PIN_RESET;
+		HAL_GPIO_WritePin(auxDCDCDisablePort,auxDCDCDisable,GPIO_PIN_RESET);
+		o_auxDCDCDisable = GPIO_PIN_RESET;
+		HAL_GPIO_WritePin(hvDCDCEnablePort,hvDCDCEnable,GPIO_PIN_RESET);
+		o_hvDCDCEnable = GPIO_PIN_RESET;
 	}
 	lastState = ACC;
 
 	currentTime = HAL_GetTick();
-	// goes back to off if something one wrong
+	// goes back to off if any one bit is wrong
 	if((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 1) || (i_killSwitch != 0))
 		currentState = OFF; 			// No fault occurs
 
@@ -285,19 +311,27 @@ void acc_state(void){		// State 1
 	{
 		currentState = IGN;
 	}
+
+
 }
+
+
 void ign_state(void){		// State 2
 
 	if( lastState == ACC )
 	{
 		enterStateTime = HAL_GetTick();
+
 		HAL_GPIO_WritePin(preChargeRelayPort, preChargeRelay, GPIO_PIN_SET);
 		o_preChargeRelay = GPIO_PIN_SET;
+		HAL_GPIO_WritePin(spareOutput3Port, spareOutput3, GPIO_PIN_SET); //why does this exist? test point?
+
+
 	}
 	lastState = IGN;
 	currentTime = HAL_GetTick();
 
-	// Key was not hold long enough
+	// Key was not held long enough
 	if (i_keyIGN != 1)
 	{
 		currentState = ACC;
@@ -328,26 +362,31 @@ void ign_state(void){		// State 2
 		}
 
 	}
-	// If 5 sec are gone, activate HVContactor and switch in ON State
-	else if(currentTime - enterStateTime >= 5000)
+	// If 4 sec are gone, activate HVContactor and switch in ON State
+	else if(currentTime - enterStateTime >= 4000)
 	{
 		HAL_GPIO_WritePin(hvContactorPort, hvContactor, GPIO_PIN_SET);
 		o_hvContactor = GPIO_PIN_SET;
+
 		currentState = DCDC;
 	}
 }
 
+
 //Short state for the transition between the two DCDC's
 void dcdc_state(void){		// State 3
+
 
 	if ( lastState == IGN )
 	{
 		enterStateTime = HAL_GetTick();
+
 		HAL_GPIO_WritePin(hvDCDCEnablePort,hvDCDCEnable, GPIO_PIN_SET);
 		o_hvDCDCEnable = GPIO_PIN_SET;
 		HAL_GPIO_WritePin(preChargeRelayPort,preChargeRelay, GPIO_PIN_RESET);
 		o_preChargeRelay = GPIO_PIN_RESET;
 	}
+
 	lastState = DCDC;
 
 	currentTime = HAL_GetTick();
@@ -376,8 +415,8 @@ void dcdc_state(void){		// State 3
 			faultCode = 39;
 		}
 	}
-	// Switch off the AUX-DCDC after 200 ms
-	else if (currentTime - enterStateTime >= 200)
+	// Switch off the AUX-DCDC after 1000 ms(1sec)
+	else if (currentTime - enterStateTime >= 1000)
 	{
 		HAL_GPIO_WritePin(auxDCDCDisablePort,auxDCDCDisable, GPIO_PIN_SET);
 		o_auxDCDCDisable = GPIO_PIN_SET;
@@ -385,7 +424,8 @@ void dcdc_state(void){		// State 3
 	}
 }
 
-void on_state(void){		// State 4
+
+void on_state(void){		// State 4 = DRIVING
 
 
 	if ( lastState == DCDC )
@@ -397,8 +437,14 @@ void on_state(void){		// State 4
 	currentTime = HAL_GetTick();
 
 
-	//SETS THE OUTPUTS!!!
+	// SETS THE OUTPUTS!!!
 	// Throttle pedal output function
+
+	updatePedal();
+
+	updateRegen();
+
+
 
 	// Check if any signal is missing --> FAULT State
 	if ((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 1 && i_chargeContactor != 1) || (i_killSwitch != 0))
@@ -432,11 +478,16 @@ void on_state(void){		// State 4
 	}
 }
 
-void charge_state(void){
+void charge_state(void){	// State 5
+
 
 	// Start charging routine by enabling AUX DCDC
 	if (lastState == ON)
 	{
+
+		HAL_GPIO_WritePin(chargeIndicatorPort, chargeIndicator, GPIO_PIN_SET);			// Charge indicator light
+		o_chargeIndicator = GPIO_PIN_SET;
+
 		enterStateTime = HAL_GetTick();
 	}
 	lastState = CHARGE;
@@ -445,7 +496,7 @@ void charge_state(void){
 
 
 	// After 0.5 sec, disconnect contactor and switch hvDCDC off
-	if (currentTime - enterStateTime >= 500)
+	if (currentTime - enterStateTime >= 10000)
 	{
 		HAL_GPIO_WritePin(hvContactorPort, hvContactor, GPIO_PIN_RESET);
 		o_hvContactor = GPIO_PIN_RESET;
@@ -454,13 +505,8 @@ void charge_state(void){
 	}
 
 
-	//SETS THE OUTPUTS --> in this case basically doing nothing, maybe outputting for long
-	// we are charging
-	//HAL_GPIO_WritePin(chargeIndicatorPort, chargeIndicator, GPIO_PIN_SET);							// Charge indictor light
 
-
-	//Changes States
-	if((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 0) || (i_chargeContactor != 1) || (i_killSwitch != 0))
+	if((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 0)  || (i_killSwitch != 0))
 	{
 		currentState = FAULT;
 		if (i_keyACC != 1)
@@ -492,180 +538,132 @@ void charge_state(void){
 }
 
 
+void fault_state(void) { // State 6
 
-void fault_state(void){
+    if (lastState != FAULT) {
+        // Set fault indicator GPIO pin
+        HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_SET);
+        o_faultIndicator = GPIO_PIN_SET;
 
-	// Compare strings for first enter
-	if (strcmp(faultString, ""))
-	{
-		// Fault indicator light on
-		HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
-		o_faultIndicator = GPIO_PIN_SET;
+        // Reset charge indicator GPIO pin
+        HAL_GPIO_WritePin(chargeIndicatorPort, chargeIndicator, GPIO_PIN_RESET);
+        o_chargeIndicator = GPIO_PIN_RESET;
 
-		sprintf(faultString, "\n\n\n\rFAULT!!! FaultTime: %lu -"
-				" old enterStateTime: %lu -- lastState = %d \n\n\n",
-				currentTime, enterStateTime, lastState);
+        // Reset pre-charge relay GPIO pin
+        HAL_GPIO_WritePin(preChargeRelayPort, preChargeRelay, GPIO_PIN_RESET);
+        o_preChargeRelay = GPIO_PIN_RESET;
 
-		CDC_Transmit_FS((uint8_t*)faultString, strlen((char*)faultString));
-		debugMode;
-		// Safe enterStateTime for measure 200 ms until HV Contactor will be open
-		enterStateTime = HAL_GetTick();
-	}
+        //Reset auxDCDCDisable GPIO pin
+        HAL_GPIO_WritePin(auxDCDCDisablePort,auxDCDCDisable, GPIO_PIN_RESET);
+        o_auxDCDCDisable = GPIO_PIN_RESET;
 
-	currentTime = HAL_GetTick();
+        // Update last state to FAULT
+        lastState = FAULT;
 
-	// Switch AUX-DCDC on
-	HAL_GPIO_WritePin(auxDCDCDisablePort,auxDCDCDisable, GPIO_PIN_RESET);
-	o_auxDCDCDisable = GPIO_PIN_RESET;
+        // Record the time when entering the FAULT state
+        enterStateTime = HAL_GetTick();
 
+    }
 
-	// Switch of HV-Contactor and HV-DCDC off
-	uint32_t deltaT = currentTime - enterStateTime;
-	if (deltaT >= 500)
-	{
-		// HV-DCDC off
-		HAL_GPIO_WritePin(hvDCDCEnablePort,hvDCDCEnable, GPIO_PIN_RESET);
-		o_hvDCDCEnable = GPIO_PIN_RESET;
+    currentTime = HAL_GetTick();
 
-		// HV Contactor open
-		HAL_GPIO_WritePin(hvContactorPort, hvContactor, GPIO_PIN_RESET);
-		o_hvDCDCEnable = GPIO_PIN_RESET;
-	}
+    if (currentTime - enterStateTime >= 500) {
+        // Reset hvDCDCEnable GPIO pin after 500ms
+        HAL_GPIO_WritePin(hvDCDCEnablePort, hvDCDCEnable, GPIO_PIN_RESET);
+        o_hvDCDCEnable = GPIO_PIN_RESET;
 
-	// Blinking light math for 2 Hz
-	// Calculating whether light is on or not
-	if (((deltaT + extraTime) / 250) % 4 == 0)
-	{
-		HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_SET);
-		o_faultIndicator = 1;
-	}
-	else if (((deltaT + extraTime) / 250) % 4 == 1)
-	{
-		if (o_faultIndicator == 1)
-		{
-			o_faultIndicator = 0;					// not as an output used here!
-			faultBlinkCounter++;
-			uint8_t highDigit = faultCode / 10;
-			uint8_t lowDigit = faultCode % 10;
-			uint8_t startBlinks = 8;
-			uint8_t betweenBlinks = 3;
-			if (((faultBlinkCounter > startBlinks) &&
-					(faultBlinkCounter <= startBlinks + highDigit)) ||
-					((faultBlinkCounter > startBlinks + highDigit + betweenBlinks) &&
-					(faultBlinkCounter <= startBlinks + highDigit + betweenBlinks + lowDigit)))
-			{
-				extraTime += 500;
-			}
-			if (faultBlinkCounter > startBlinks + highDigit + betweenBlinks + lowDigit)
-			{
-				faultBlinkCounter = 0;
-			}
-		}
-	}
-	else if (((deltaT + extraTime) / 250) % 4 == 3)
-	{
-		HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
-		o_faultIndicator = 0;
-	}
-	else
-	{
-//		uint8_t highDigit = faultCode / 10;
-//		uint8_t lowDigit = faultCode % 10;
-//		uint8_t startBlinks = 8;
-//		uint8_t betweenBlinks = 3;
-//		if (faultBlinkCounter < startBlinks)
-//		{
-//			HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
-//		}
-//		else if (faultBlinkCounter - startBlinks > highDigit)
-//		{
-//			HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_SET);
-//		}
-//		else if (faultBlinkCounter - startBlinks - highDigit > betweenBlinks)
-//		{
-//			HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
-//		}
-//		else if (faultBlinkCounter - startBlinks - highDigit - betweenBlinks > lowDigit)
-//		{
-//			HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_SET);
-//		}
-//		else
-//		{
-//			faultBlinkCounter = 0;
-//		}
-	}
+        // Open HV Contactor
+        HAL_GPIO_WritePin(hvContactorPort, hvContactor, GPIO_PIN_RESET);
+        o_hvContactor = GPIO_PIN_RESET;
+    }
 
-	// Switch off serial monitor in fault state if nothing happens anymore (after 300 ms)
-	if (deltaT >= 1000)
-	{
-		debugMode;
-	}
-
-
-	//FALUT INDICATOR
-
-}
-//will change to what ever kill switch is set to
-	//KILL SWITCH INTERUPT
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-	if(GPIO_Pin == B1_Pin) {
-		switch(currentState) {
-			case OFF:
-				currentState = FAULT;
-				break;
-			case ACC:
-				currentState = FAULT;
-				break;
-			case IGN:
-				currentState = FAULT;
-				break;
-			case DCDC:
-				currentState = FAULT;
-				break;
-			case ON:
-				currentState = FAULT;
-				break;
-			case CHARGE:
-				currentState = FAULT;
-				break;
-			case FAULT:
-				currentState = FAULT;
-				break;
-		}
-	}
+    faultBlinker();
+    // FAULT INDICATOR
 }
 
 void debugMonitor(void)
 {
-	char inBuffer[240], outBuffer[240], stateBuffer[240];
-	sprintf(inBuffer, "\r%lu --- %lu --- State = %d keyIGN: %d\t keyACC: %d\t killSwitch:"
-			" %d chargeContactor: %d chargeEnable: %d disChargeEnable: %d brakeSwitch: "
-			"%d HV-DCDC-En: %d\t Aux-DCDC: %d\t \n", currentTime, enterStateTime, currentState,
-			i_keyIGN, i_keyACC, i_killSwitch, i_chargeContactor, i_chargeEnable,
-			i_disChargeEnable, i_brakeSwitchInput, o_hvDCDCEnable, o_auxDCDCDisable);
-	CDC_Transmit_FS((uint8_t*)inBuffer, strlen((char*)inBuffer));
-	// HAL_Delay(50);
-	sprintf(outBuffer, "\rHV-DCDC-En: %d\t Aux-DCDC: %d\t chargeInd: %d\t faultInd: %d\t HV+_Contactor: %d\t preCharge: %d \n", o_hvDCDCEnable, o_auxDCDCDisable, o_chargeIndicator, o_faultIndicator, o_hvContactor, o_preChargeRelay);
-	sprintf(stateBuffer, "\r%lu State = %d", currentTime, currentState);
+	char  analogBuffer[200], outBuffer[240];
+	//stateBuffer[240] inBuffer[300], outBuffer[240], outBufferOld[240,;
+	//old unused  String arrays ^^^
 
-//	CDC_Transmit_FS((uint8_t*)outBuffer, strlen((char*)outBuffer));
-	// CDC_Transmit_FS((uint8_t*)stateBuffer, strlen((char*)stateBuffer));
+	sprintf(analogBuffer, "\rPedalADC : %d PedalDAC: %d RegenADC: %d RegenDAC: %d\n",
+			i_pedalADC, o_pedalDAC, i_regenADC, o_regenDAC);
 
+	sprintf(outBuffer, "\rS: %d E-HV-DCDC-E+=%d D-Aux-DCDC=%d ChargeInd=%d FaultInd=%d HV+_Contactor=%d PreCharge=%d KeyIgn=%d KeyACC=%d PedalADC=%d PedalDAC=%d Discharge=%d KillSwitch= %d Code=%d\n",
+			currentState, o_hvDCDCEnable, o_auxDCDCDisable, o_chargeIndicator, o_faultIndicator, o_hvContactor, o_preChargeRelay, i_keyIGN,i_keyACC,  i_pedalADC, o_pedalDAC, i_disChargeEnable, i_killSwitch, faultCode);
 
+//	sprintf(outBuffer,"\rS=%d ChargeCONT=%d ChargeEna=%d HV-DCDC-En=%d D-Aux-DCDC=%d ChargeInd=%d FaultInd=%d HV+_Contactor=%d Code=%d\n",
+//						currentState, i_chargeContactor,i_chargeEnable, o_hvDCDCEnable, o_auxDCDCDisable,o_chargeIndicator, o_faultIndicator, o_hvContactor, faultCode);
 
+//	sprintf(outBuffer,"\rS: %d Discharge=%d KillSwitch= %d\n",
+//			currentState, i_disChargeEnable, i_killSwitch);
 
-
-/* keyIGN = HAL_GPIO_ReadPin(keyIGNPort, keyIGN);
-	  keyACC = HAL_GPIO_ReadPin(keyACCPort, keyACC);
-	  chargeSafety = HAL_GPIO_ReadPin(chargeContactorPort, chargeContactor);
-	  chargeEnable = HAL_GPIO_ReadPin(chargeEnablePort, chargeEnable);
-	  disChargeEnable = HAL_GPIO_ReadPin(disC
-	  */
+	CDC_Transmit_FS((uint8_t*)outBuffer, strlen((char*)outBuffer));
 
 
+}
+
+void updatePedal(void){
+
+    HAL_ADC_Start(&hadc1);
+    HAL_DAC_Start(&hdac, DAC_CHANNEL_1);
+
+    // Get input from PA0
+    	i_pedalADC = HAL_ADC_GetValue(&hadc1);
+
+    	//o_DAC = ( (i_ADC - min_ADC) * (max_DAC - min_DAC) )/(max_ADC - min_ADC)+ min_DAC
+    	//o_DAC = max_DAC - o_DAC;
+
+    	// map value_adc to the range 740-4095 to value dac range to 4095
+    	// vaule_dac starts high then goes low(4095-->0)
+        o_pedalDAC = ((i_pedalADC - MIN_ADC) * (MAX_DAC- MIN_DAC)) / (MAX_ADC - MIN_ADC) + MIN_DAC;
+        //invert value
+        o_pedalDAC = MAX_DAC - o_pedalDAC;
+
+        // Outputting DAC value to PA4
+        HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, o_pedalDAC);
+        HAL_Delay(1);
+}
+
+void updateRegen(void) {
+
+            HAL_ADC_Start(&hadc2);
+            HAL_DAC_Start(&hdac, DAC_CHANNEL_2);
+
+            	i_regenADC = HAL_ADC_GetValue(&hadc2);
+
+                // Map value_adc to the range 740-4095 to value_dac range 0-4095
+                o_regenDAC = i_regenADC;
+                //throttle_pos = (uint32_t)((value_dac / 4096) * 100); // Truncate to integer
+                // Output DAC value to PA
+                HAL_DAC_SetValue(&hdac, DAC_CHANNEL_2, DAC_ALIGN_12B_R, o_regenDAC);
+                HAL_Delay(1);
+}
+
+
+void faultBlinker(void) {
+    // Blinks the Fault Indicator at 1.5 Hz (1.5p second on/off)
+    if (currentTime - extraTime >= 750) {
+
+        // Toggle fault indicator GPIO pin
+        if (o_faultIndicator == GPIO_PIN_RESET) { // Checks to see if Fault Light is OFF
+
+            // Turns on the Fault Light
+            HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_SET);
+            o_faultIndicator = GPIO_PIN_SET;
+        } else {
+            // Turns off the Fault Light
+            HAL_GPIO_WritePin(faultIndicatorPort, faultIndicator, GPIO_PIN_RESET);
+            o_faultIndicator = GPIO_PIN_RESET;
+        }
+
+        extraTime = currentTime;
+    }
+}
 
   /* USER CODE END 3 */
-}
+
 
 /**
   * @brief System Clock Configuration
@@ -736,7 +734,7 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = DISABLE;
-  hadc1.Init.ContinuousConvMode = DISABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -753,7 +751,7 @@ static void MX_ADC1_Init(void)
   */
   sConfig.Channel = ADC_CHANNEL_1;
   sConfig.Rank = 1;
-  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -788,7 +786,7 @@ static void MX_ADC2_Init(void)
   hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
   hadc2.Init.Resolution = ADC_RESOLUTION_12B;
   hadc2.Init.ScanConvMode = DISABLE;
-  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.ContinuousConvMode = ENABLE;
   hadc2.Init.DiscontinuousConvMode = DISABLE;
   hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
@@ -848,7 +846,29 @@ static void MX_CAN1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN CAN1_Init 2 */
+  //Sets Up the First part of the CAN FRAME
+  TxHeader.IDE = CAN_ID_STD;
+  TxHeader.StdId = 0x420;
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.DLC = 8;
 
+  Filter.FilterActivation = CAN_FILTER_ENABLE;
+  Filter.FilterBank = 0;
+  Filter.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+  Filter.FilterIdHigh = 0x0000;
+  Filter.FilterIdLow = 0x0000;
+  Filter.FilterMaskIdHigh = 0x0000;
+  Filter.FilterMaskIdLow = 0x0000;
+  Filter.FilterMode = CAN_FILTERMODE_IDMASK;
+  Filter.FilterScale = CAN_FILTERSCALE_32BIT;
+  Filter.SlaveStartFilterBank = 14;
+
+  if (HAL_CAN_ConfigFilter(&hcan1, &Filter) != HAL_OK){
+	  Error_Handler();
+  }
+  if(HAL_CAN_Start(&hcan1)!= HAL_OK){
+	  Error_Handler();
+  }
   /* USER CODE END CAN1_Init 2 */
 
 }
@@ -931,10 +951,13 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD6_Pin|spareOutput2_Pin
-                          |faultIndicatorD3_Pin|chargeIndicator_Pin|spareOutput3_Pin|spareOutput1_Pin, GPIO_PIN_RESET);
+                          |faultIndicatorD3_Pin|chargeIndicator_Pin|NA2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(faultIndicator_GPIO_Port, faultIndicator_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(spareOutput3_GPIO_Port, spareOutput3_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pins : CS_I2C_SPI_Pin auxDCDCDisable_Pin hvDCDCEnable_Pin preChargeRelay_Pin
                            hvContactor_Pin */
@@ -1018,9 +1041,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD4_Pin LD3_Pin LD6_Pin spareOutput2_Pin
-                           faultIndicatorD3_Pin chargeIndicator_Pin spareOutput3_Pin spareOutput1_Pin */
+                           faultIndicatorD3_Pin chargeIndicator_Pin NA2_Pin */
   GPIO_InitStruct.Pin = LD4_Pin|LD3_Pin|LD6_Pin|spareOutput2_Pin
-                          |faultIndicatorD3_Pin|chargeIndicator_Pin|spareOutput3_Pin|spareOutput1_Pin;
+                          |faultIndicatorD3_Pin|chargeIndicator_Pin|NA2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -1034,6 +1057,13 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
   HAL_GPIO_Init(I2S3_SCK_GPIO_Port, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : spareOutput3_Pin */
+  GPIO_InitStruct.Pin = spareOutput3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
+  HAL_GPIO_Init(spareOutput3_GPIO_Port, &GPIO_InitStruct);
+
   /*Configure GPIO pin : MEMS_INT2_Pin */
   GPIO_InitStruct.Pin = MEMS_INT2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_EVT_RISING;
@@ -1045,7 +1075,9 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+void HAL_CAN_RxFifoMsgPendingCallback(CAN_HandleTypeDef *hcan){
+	HAL_CAN_GetRxMessage(&hcan1, CAN_RX_FIFO0, &RxHeader, RxData);
+}
 /* USER CODE END 4 */
 
 /**
