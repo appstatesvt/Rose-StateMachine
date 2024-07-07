@@ -38,34 +38,34 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := StateMachine2024_v2
+BUILD_ARTIFACT_NAME := StateMachine2024
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
 
 # Add inputs and outputs from these tool invocations to the build variables 
 EXECUTABLES += \
-StateMachine2024_v2.elf \
+StateMachine2024.elf \
 
 MAP_FILES += \
-StateMachine2024_v2.map \
+StateMachine2024.map \
 
 SIZE_OUTPUT += \
 default.size.stdout \
 
 OBJDUMP_LIST += \
-StateMachine2024_v2.list \
+StateMachine2024.list \
 
 
 # All Target
 all: main-build
 
 # Main-build Target
-main-build: StateMachine2024_v2.elf secondary-outputs
+main-build: StateMachine2024.elf secondary-outputs
 
 # Tool invocations
-StateMachine2024_v2.elf StateMachine2024_v2.map: $(OBJS) $(USER_OBJS) C:\Users\caren\STM32CubeIDE\workspace_1.15.1\StateMachine2024_v2\StateMachine2024_v2\STM32F407VGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "StateMachine2024_v2.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\caren\STM32CubeIDE\workspace_1.15.1\StateMachine2024_v2\StateMachine2024_v2\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="StateMachine2024_v2.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+StateMachine2024.elf StateMachine2024.map: $(OBJS) $(USER_OBJS) C:\Users\caren\STM32CubeIDE\workspace_1.15.1\StateMachine2024_v2\StateMachine2024_v2\STM32F407VGTX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-gcc -o "StateMachine2024.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"C:\Users\caren\STM32CubeIDE\workspace_1.15.1\StateMachine2024_v2\StateMachine2024_v2\STM32F407VGTX_FLASH.ld" --specs=nosys.specs -Wl,-Map="StateMachine2024.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -74,14 +74,14 @@ default.size.stdout: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
 	@echo 'Finished building: $@'
 	@echo ' '
 
-StateMachine2024_v2.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "StateMachine2024_v2.list"
+StateMachine2024.list: $(EXECUTABLES) makefile objects.list $(OPTIONAL_TOOL_DEPS)
+	arm-none-eabi-objdump -h -S $(EXECUTABLES) > "StateMachine2024.list"
 	@echo 'Finished building: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) StateMachine2024_v2.elf StateMachine2024_v2.list StateMachine2024_v2.map default.size.stdout
+	-$(RM) StateMachine2024.elf StateMachine2024.list StateMachine2024.map default.size.stdout
 	-@echo ' '
 
 secondary-outputs: $(SIZE_OUTPUT) $(OBJDUMP_LIST)
