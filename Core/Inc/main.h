@@ -69,6 +69,8 @@ void Error_Handler(void);
 #define PH1_OSC_OUT_GPIO_Port GPIOH
 #define OTG_FS_PowerSwitchOn_Pin GPIO_PIN_0
 #define OTG_FS_PowerSwitchOn_GPIO_Port GPIOC
+#define auxVoltageIN_Pin GPIO_PIN_2
+#define auxVoltageIN_GPIO_Port GPIOC
 #define PDM_OUT_Pin GPIO_PIN_3
 #define PDM_OUT_GPIO_Port GPIOC
 #define B1_Pin GPIO_PIN_0
@@ -193,6 +195,9 @@ void Error_Handler(void);
 
 #define regenADC regenADC_Pin			// PA2 - ADC2_IN2
 #define regenADCPort GPIOA
+
+#define auxVoltageIN GPIO_PIN_2				// PC2
+#define auxVoltageIN_Port GPIOC
 
 #define spareInput1 spareInput1_Pin		// PD9
 #define spareInput1Port GPIOD

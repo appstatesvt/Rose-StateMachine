@@ -54,10 +54,9 @@ typedef enum {
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
-
 ADC_HandleTypeDef hadc1;
-
 ADC_HandleTypeDef hadc2;
+ADC_HandleTypeDef hadc3;
 
 CAN_HandleTypeDef hcan1;
 
@@ -70,6 +69,8 @@ const int MIN_ADC = 630;   //630
 const int MAX_ADC = 3900; //3900
 const int MIN_DAC = 0;
 const int MAX_DAC = 4095;
+// Const for AUX undervoltage protection
+const int UNDERVOLTAGE = 3210;			// 21 Volts, experimental, 12 bit @ 3.3VCC,
 
 // sets current state
 static State_t currentState = OFF;
@@ -130,6 +131,7 @@ GPIO_PinState o_preChargeRelay;
 
 uint16_t o_pedalDAC=0;
 uint16_t i_pedalADC=0;
+uint16_t ai_auxVoltage = 0;
 
 uint16_t o_regenDAC=0;
 uint16_t i_regenADC=0;
@@ -152,6 +154,7 @@ static void MX_ADC1_Init(void);
 static void MX_DAC_Init(void);
 static void MX_ADC2_Init(void);
 static void MX_CAN1_Init(void);
+static void MX_ADC3_Init(void);
 /* USER CODE BEGIN PFP */
 void off_state(void);
 void acc_state(void);
@@ -163,6 +166,7 @@ void fault_state(void);
 void stateMachine_init(void);
 void debugMonitor(void);
 void updatePedal(void);
+void updateAuxADC(void);
 void updateRegen(void);
 void faultBlinker(void);
 
@@ -206,6 +210,7 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_ADC2_Init();
   MX_CAN1_Init();
+  MX_ADC3_Init();
   /* USER CODE BEGIN 2 */
 
 
@@ -279,8 +284,10 @@ void off_state(void){		// State 0
 	o_chargeIndicator = GPIO_PIN_RESET;
 	HAL_GPIO_WritePin(faultIndicatorPort,faultIndicator,RESET);
 	o_faultIndicator = GPIO_PIN_RESET;
+
+	updateAuxADC();
 	//Changes States
-	if ((i_keyACC != 0 ) && (i_chargeEnable != 0) && (i_disChargeEnable != 0) && (i_killSwitch != 1)){
+	if ((i_keyACC != 0 ) && (i_chargeEnable != 0) && (i_disChargeEnable != 0) && (i_killSwitch != 1) && (ai_auxVoltage > UNDERVOLTAGE)){
 		currentState = ACC;
 	}
 }
@@ -590,8 +597,8 @@ void debugMonitor(void)
 	sprintf(analogBuffer, "\rPedalADC : %d PedalDAC: %d RegenADC: %d RegenDAC: %d\n",
 			i_pedalADC, o_pedalDAC, i_regenADC, o_regenDAC);
 
-	sprintf(outBuffer, "\rS: %d E-HV-DCDC-E+=%d D-Aux-DCDC=%d ChargeInd=%d FaultInd=%d HV+_Contactor=%d PreCharge=%d KeyIgn=%d KeyACC=%d PedalADC=%d PedalDAC=%d Discharge=%d KillSwitch= %d Code=%d\n",
-			currentState, o_hvDCDCEnable, o_auxDCDCDisable, o_chargeIndicator, o_faultIndicator, o_hvContactor, o_preChargeRelay, i_keyIGN,i_keyACC,  i_pedalADC, o_pedalDAC, i_disChargeEnable, i_killSwitch, faultCode);
+	sprintf(outBuffer, "\rS: %d E-HV-DCDC-E+=%d D-Aux-DCDC=%d ChargeInd=%d FaultInd=%d HV+_Con=%d PreCharge=%d KeyIgn=%d KeyACC=%d PedalADC=%d PedalDAC=%d DisChEn=%d KillSw=%d AuxADC=%d Code=%d\n",
+			currentState, o_hvDCDCEnable, o_auxDCDCDisable, o_chargeIndicator, o_faultIndicator, o_hvContactor, o_preChargeRelay, i_keyIGN,i_keyACC,  i_pedalADC, o_pedalDAC, i_disChargeEnable, i_killSwitch, ai_auxVoltage, faultCode);
 
 //	sprintf(outBuffer,"\rS=%d ChargeCONT=%d ChargeEna=%d HV-DCDC-En=%d D-Aux-DCDC=%d ChargeInd=%d FaultInd=%d HV+_Contactor=%d Code=%d\n",
 //						currentState, i_chargeContactor,i_chargeEnable, o_hvDCDCEnable, o_auxDCDCDisable,o_chargeIndicator, o_faultIndicator, o_hvContactor, faultCode);
@@ -641,6 +648,11 @@ void updateRegen(void) {
                 HAL_Delay(1);
 }
 
+void updateAuxADC(void){
+	HAL_ADC_Start(&hadc3);
+	ai_auxVoltage = HAL_ADC_GetValue(&hadc3);			// Measure aux voltage and compare to threshold value
+	HAL_Delay(1);
+}
 
 void faultBlinker(void) {
     // Blinks the Fault Indicator at 1.5 Hz (1.5p second on/off)
@@ -660,10 +672,10 @@ void faultBlinker(void) {
 
         extraTime = currentTime;
     }
-}
+
 
   /* USER CODE END 3 */
-
+}
 
 /**
   * @brief System Clock Configuration
@@ -811,6 +823,58 @@ static void MX_ADC2_Init(void)
   /* USER CODE BEGIN ADC2_Init 2 */
 
   /* USER CODE END ADC2_Init 2 */
+
+}
+
+/**
+  * @brief ADC3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC3_Init(void)
+{
+
+  /* USER CODE BEGIN ADC3_Init 0 */
+
+  /* USER CODE END ADC3_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC3_Init 1 */
+
+  /* USER CODE END ADC3_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc3.Instance = ADC3;
+  hadc3.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc3.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc3.Init.ScanConvMode = DISABLE;
+  hadc3.Init.ContinuousConvMode = ENABLE;
+  hadc3.Init.DiscontinuousConvMode = DISABLE;
+  hadc3.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc3.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc3.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc3.Init.NbrOfConversion = 1;
+  hadc3.Init.DMAContinuousRequests = DISABLE;
+  hadc3.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_12;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc3, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC3_Init 2 */
+
+  /* USER CODE END ADC3_Init 2 */
 
 }
 
