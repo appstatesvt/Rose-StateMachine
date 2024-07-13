@@ -79,8 +79,6 @@ void Error_Handler(void);
 #define pedalADC_GPIO_Port GPIOA
 #define regenADC_Pin GPIO_PIN_2
 #define regenADC_GPIO_Port GPIOA
-#define chargeEnable_Pin GPIO_PIN_3
-#define chargeEnable_GPIO_Port GPIOA
 #define pedalDAC_Pin GPIO_PIN_4
 #define pedalDAC_GPIO_Port GPIOA
 #define regenDAC_Pin GPIO_PIN_5
@@ -105,8 +103,8 @@ void Error_Handler(void);
 #define chargeContactor_GPIO_Port GPIOE
 #define disChargeEnable_Pin GPIO_PIN_14
 #define disChargeEnable_GPIO_Port GPIOE
-#define chargeEnableE15_Pin GPIO_PIN_15
-#define chargeEnableE15_GPIO_Port GPIOE
+#define chargeEnable_Pin GPIO_PIN_15
+#define chargeEnable_GPIO_Port GPIOE
 #define CLK_IN_Pin GPIO_PIN_10
 #define CLK_IN_GPIO_Port GPIOB
 #define hvContactorB15_Pin GPIO_PIN_15

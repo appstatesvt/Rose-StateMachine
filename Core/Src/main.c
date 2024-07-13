@@ -292,7 +292,7 @@ void off_state(void){		// State 0
 
 	updateAuxADC();
 	//Changes States
-	if ((i_keyACC != 0 ) && (i_chargeEnable != 0) && (i_disChargeEnable != 0) && (i_killSwitch != 1) && (ai_auxVoltage > UNDERVOLTAGE)){
+	if ((i_keyACC != 0 ) && (i_disChargeEnable != 0) && (i_killSwitch != 1) && (ai_auxVoltage > UNDERVOLTAGE)){
 		currentState = ACC;
 	}
 }
@@ -315,7 +315,7 @@ void acc_state(void){		// State 1
 
 	currentTime = HAL_GetTick();
 	// goes back to off if any one bit is wrong
-	if((i_keyACC != 1) || (i_chargeEnable != 1) || (i_disChargeEnable != 1) || (i_killSwitch != 0))
+	if((i_keyACC != 1) || (i_disChargeEnable != 1) || (i_killSwitch != 0))			//(i_chargeEnable != 1) ||
 		currentState = OFF; 			// No fault occurs
 
 	//Changes States
@@ -1119,12 +1119,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : chargeEnable_Pin */
-  GPIO_InitStruct.Pin = chargeEnable_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(chargeEnable_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pin : SPI1_MISO_Pin */
   GPIO_InitStruct.Pin = SPI1_MISO_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
@@ -1140,9 +1134,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(BOOT1_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : keyIGN_Pin keyACC_Pin chargeContactor_Pin disChargeEnable_Pin
-                           chargeEnableE15_Pin */
+                           chargeEnable_Pin */
   GPIO_InitStruct.Pin = keyIGN_Pin|keyACC_Pin|chargeContactor_Pin|disChargeEnable_Pin
-                          |chargeEnableE15_Pin;
+                          |chargeEnable_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
