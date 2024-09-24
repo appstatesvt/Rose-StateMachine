@@ -1,3 +1,4 @@
+
 /* USER CODE BEGIN Header */
 /**
   ******************************************************************************
@@ -20,7 +21,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
 /* USER CODE BEGIN Includes */
 
 /* USER CODE END Includes */
@@ -63,6 +63,7 @@
   */
 void HAL_MspInit(void)
 {
+
   /* USER CODE BEGIN MspInit 0 */
 
   /* USER CODE END MspInit 0 */
@@ -99,12 +100,11 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     __HAL_RCC_GPIOA_CLK_ENABLE();
     /**ADC1 GPIO Configuration
     PA1     ------> ADC1_IN1
-    PA2     ------> ADC1_IN2
     */
-    GPIO_InitStruct.Pin = pedalADC_Pin|regenADC_Pin;
+    GPIO_InitStruct.Pin = pedalADC_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    HAL_GPIO_Init(pedalADC_GPIO_Port, &GPIO_InitStruct);
 
   /* USER CODE BEGIN ADC1_MspInit 1 */
 
@@ -131,6 +131,27 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
 
   /* USER CODE END ADC2_MspInit 1 */
   }
+  else if(hadc->Instance==ADC3)
+  {
+  /* USER CODE BEGIN ADC3_MspInit 0 */
+
+  /* USER CODE END ADC3_MspInit 0 */
+    /* Peripheral clock enable */
+    __HAL_RCC_ADC3_CLK_ENABLE();
+
+    __HAL_RCC_GPIOC_CLK_ENABLE();
+    /**ADC3 GPIO Configuration
+    PC2     ------> ADC3_IN12
+    */
+    GPIO_InitStruct.Pin = auxVoltageIN_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    HAL_GPIO_Init(auxVoltageIN_GPIO_Port, &GPIO_InitStruct);
+
+  /* USER CODE BEGIN ADC3_MspInit 1 */
+
+  /* USER CODE END ADC3_MspInit 1 */
+  }
 
 }
 
@@ -152,9 +173,8 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
 
     /**ADC1 GPIO Configuration
     PA1     ------> ADC1_IN1
-    PA2     ------> ADC1_IN2
     */
-    HAL_GPIO_DeInit(GPIOA, pedalADC_Pin|regenADC_Pin);
+    HAL_GPIO_DeInit(pedalADC_GPIO_Port, pedalADC_Pin);
 
   /* USER CODE BEGIN ADC1_MspDeInit 1 */
 
@@ -176,6 +196,23 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
   /* USER CODE BEGIN ADC2_MspDeInit 1 */
 
   /* USER CODE END ADC2_MspDeInit 1 */
+  }
+  else if(hadc->Instance==ADC3)
+  {
+  /* USER CODE BEGIN ADC3_MspDeInit 0 */
+
+  /* USER CODE END ADC3_MspDeInit 0 */
+    /* Peripheral clock disable */
+    __HAL_RCC_ADC3_CLK_DISABLE();
+
+    /**ADC3 GPIO Configuration
+    PC2     ------> ADC3_IN12
+    */
+    HAL_GPIO_DeInit(auxVoltageIN_GPIO_Port, auxVoltageIN_Pin);
+
+  /* USER CODE BEGIN ADC3_MspDeInit 1 */
+
+  /* USER CODE END ADC3_MspDeInit 1 */
   }
 
 }
@@ -212,6 +249,7 @@ void HAL_CAN_MspInit(CAN_HandleTypeDef* hcan)
   /* USER CODE BEGIN CAN1_MspInit 1 */
 
   /* USER CODE END CAN1_MspInit 1 */
+
   }
 
 }
@@ -275,6 +313,7 @@ void HAL_DAC_MspInit(DAC_HandleTypeDef* hdac)
   /* USER CODE BEGIN DAC_MspInit 1 */
 
   /* USER CODE END DAC_MspInit 1 */
+
   }
 
 }

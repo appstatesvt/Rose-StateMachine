@@ -69,6 +69,8 @@ void Error_Handler(void);
 #define PH1_OSC_OUT_GPIO_Port GPIOH
 #define OTG_FS_PowerSwitchOn_Pin GPIO_PIN_0
 #define OTG_FS_PowerSwitchOn_GPIO_Port GPIOC
+#define auxVoltageIN_Pin GPIO_PIN_2
+#define auxVoltageIN_GPIO_Port GPIOC
 #define PDM_OUT_Pin GPIO_PIN_3
 #define PDM_OUT_GPIO_Port GPIOC
 #define B1_Pin GPIO_PIN_0
@@ -77,8 +79,6 @@ void Error_Handler(void);
 #define pedalADC_GPIO_Port GPIOA
 #define regenADC_Pin GPIO_PIN_2
 #define regenADC_GPIO_Port GPIOA
-#define chargeEnable_Pin GPIO_PIN_3
-#define chargeEnable_GPIO_Port GPIOA
 #define pedalDAC_Pin GPIO_PIN_4
 #define pedalDAC_GPIO_Port GPIOA
 #define regenDAC_Pin GPIO_PIN_5
@@ -103,12 +103,10 @@ void Error_Handler(void);
 #define chargeContactor_GPIO_Port GPIOE
 #define disChargeEnable_Pin GPIO_PIN_14
 #define disChargeEnable_GPIO_Port GPIOE
-#define chargeEnableE15_Pin GPIO_PIN_15
-#define chargeEnableE15_GPIO_Port GPIOE
+#define chargeEnable_Pin GPIO_PIN_15
+#define chargeEnable_GPIO_Port GPIOE
 #define CLK_IN_Pin GPIO_PIN_10
 #define CLK_IN_GPIO_Port GPIOB
-#define hvContactorB15_Pin GPIO_PIN_15
-#define hvContactorB15_GPIO_Port GPIOB
 #define spareInput2_Pin GPIO_PIN_8
 #define spareInput2_GPIO_Port GPIOD
 #define spareInput1_Pin GPIO_PIN_9
@@ -143,16 +141,14 @@ void Error_Handler(void);
 #define killSwitch_GPIO_Port GPIOD
 #define brakeSwitchInput_Pin GPIO_PIN_2
 #define brakeSwitchInput_GPIO_Port GPIOD
-#define faultIndicatorD3_Pin GPIO_PIN_3
-#define faultIndicatorD3_GPIO_Port GPIOD
 #define chargeIndicator_Pin GPIO_PIN_4
 #define chargeIndicator_GPIO_Port GPIOD
 #define OTG_FS_OverCurrent_Pin GPIO_PIN_5
 #define OTG_FS_OverCurrent_GPIO_Port GPIOD
 #define spareOutput3_Pin GPIO_PIN_6
 #define spareOutput3_GPIO_Port GPIOD
-#define spareOutput1_Pin GPIO_PIN_7
-#define spareOutput1_GPIO_Port GPIOD
+#define NA2_Pin GPIO_PIN_7
+#define NA2_GPIO_Port GPIOD
 #define SWO_Pin GPIO_PIN_3
 #define SWO_GPIO_Port GPIOB
 #define canRX_Pin GPIO_PIN_8
@@ -194,6 +190,9 @@ void Error_Handler(void);
 #define regenADC regenADC_Pin			// PA2 - ADC2_IN2
 #define regenADCPort GPIOA
 
+#define auxVoltageIN GPIO_PIN_2				// PC2
+#define auxVoltageIN_Port GPIOC
+
 #define spareInput1 spareInput1_Pin		// PD9
 #define spareInput1Port GPIOD
 
@@ -223,14 +222,23 @@ void Error_Handler(void);
 #define preChargeRelay preChargeRelay_Pin	//PE11
 #define preChargeRelayPort GPIOE
 
+//#define preChargeRelay spareOutput1_Pin	//PE11			Re-defined to PD7 to use spare output with U12 Mosfet
+//#define preChargeRelayPort GPIOD
+
+//#define preChargeRelay spareOutput1_Pin		// PD7
+//#define preChargeRelayPort GPIOD
+
 #define pedalDAC pedalDAC_Pin		// PA4 DAC_OUT1
 #define pedalDACPort GPIOA
 
 #define regenDAC regenDAC_Pin		// PA5 DAC_OUT2
 #define regenDACPort GPIOA
 
-#define spareOutput1 spareOutput1_Pin		// PD7
-#define spareOutput1Port GPIOD
+//#define spareOutput1 spareOutput1_Pin		// PD7
+//#define spareOutput1Port GPIOD
+
+#define spareOutput1 preChargeRelay_Pin		// PE11
+#define spareOutput1Port GPIOE
 
 #define spareOutput2 spareOutput2_Pin		// PD0
 #define spareOutput2Port GPIOD
