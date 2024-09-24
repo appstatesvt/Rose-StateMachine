@@ -185,6 +185,7 @@ void faultBlinker(void);
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
 
   /* USER CODE END 1 */
@@ -540,7 +541,7 @@ void faultTemp_state(void){			// State 7
 		}
 	}
     // After 10 sec, disconnect contactor and switch hvDCDC off (wait for charger to setup own 12V)
-    else if (currentTime - enterStateTime >= 10000)
+    else if (currentTime - enterStateTime >= 30000)
 	{
 		currentState = FAULT;
 		faultCode = 72;
@@ -655,11 +656,10 @@ void debugMonitor(void)
 	sprintf(analogBuffer, "\rPedalADC : %d PedalDAC: %d RegenADC: %d RegenDAC: %d\n",
 			i_pedalADC, o_pedalDAC, i_regenADC, o_regenDAC);
 
-	sprintf(outBuffer, "\rS: %d HVDCDCen+=%d AuxDCDCdi=%d ChgIn=%d FltIn=%d HV+Con=%d PChg=%d KeyIgn=%d KeyACC=%d DisChEn=%d KillSw=%d ChgEn=%d ChgCon=%d Code=%d\n",
+	sprintf(outBuffer, "\rS: %d hvDCe=%d AuxDCd=%d FltIn=%d PChg=%d KeyI=%d KeyA=%d DisCe=%d KSw=%d CHGe=%d CHGc=%d ADC=%d Code=%d\n",
 			currentState, o_hvDCDCEnable, o_auxDCDCDisable,
-			o_chargeIndicator, o_faultIndicator, o_hvContactor,
-			o_preChargeRelay, i_keyIGN,i_keyACC, i_disChargeEnable,
-			i_killSwitch, i_chargeEnable, i_chargeContactor, faultCode);
+			o_faultIndicator, o_preChargeRelay, i_keyIGN,i_keyACC, i_disChargeEnable,
+			i_killSwitch, i_chargeEnable, i_chargeContactor, i_pedalADC, faultCode);
 
 	// ChargeSafety = ChargeContactor
 	// DischargeEnable
@@ -1077,11 +1077,8 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(OTG_FS_PowerSwitchOn_GPIO_Port, OTG_FS_PowerSwitchOn_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(hvContactorB15_GPIO_Port, hvContactorB15_Pin, GPIO_PIN_RESET);
-
-  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, LD4_Pin|LD3_Pin|LD6_Pin|spareOutput2_Pin
-                          |faultIndicatorD3_Pin|chargeIndicator_Pin|NA2_Pin, GPIO_PIN_RESET);
+                          |chargeIndicator_Pin|NA2_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(faultIndicator_GPIO_Port, faultIndicator_Pin, GPIO_PIN_RESET);
@@ -1149,13 +1146,6 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Alternate = GPIO_AF5_SPI2;
   HAL_GPIO_Init(CLK_IN_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : hvContactorB15_Pin */
-  GPIO_InitStruct.Pin = hvContactorB15_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(hvContactorB15_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pins : spareInput2_Pin spareInput1_Pin spareInput3_Pin killSwitch_Pin
                            brakeSwitchInput_Pin OTG_FS_OverCurrent_Pin */
   GPIO_InitStruct.Pin = spareInput2_Pin|spareInput1_Pin|spareInput3_Pin|killSwitch_Pin
@@ -1165,9 +1155,9 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : LD4_Pin LD3_Pin LD6_Pin spareOutput2_Pin
-                           faultIndicatorD3_Pin chargeIndicator_Pin NA2_Pin */
+                           chargeIndicator_Pin NA2_Pin */
   GPIO_InitStruct.Pin = LD4_Pin|LD3_Pin|LD6_Pin|spareOutput2_Pin
-                          |faultIndicatorD3_Pin|chargeIndicator_Pin|NA2_Pin;
+                          |chargeIndicator_Pin|NA2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

@@ -107,8 +107,6 @@ void Error_Handler(void);
 #define chargeEnable_GPIO_Port GPIOE
 #define CLK_IN_Pin GPIO_PIN_10
 #define CLK_IN_GPIO_Port GPIOB
-#define hvContactorB15_Pin GPIO_PIN_15
-#define hvContactorB15_GPIO_Port GPIOB
 #define spareInput2_Pin GPIO_PIN_8
 #define spareInput2_GPIO_Port GPIOD
 #define spareInput1_Pin GPIO_PIN_9
@@ -143,8 +141,6 @@ void Error_Handler(void);
 #define killSwitch_GPIO_Port GPIOD
 #define brakeSwitchInput_Pin GPIO_PIN_2
 #define brakeSwitchInput_GPIO_Port GPIOD
-#define faultIndicatorD3_Pin GPIO_PIN_3
-#define faultIndicatorD3_GPIO_Port GPIOD
 #define chargeIndicator_Pin GPIO_PIN_4
 #define chargeIndicator_GPIO_Port GPIOD
 #define OTG_FS_OverCurrent_Pin GPIO_PIN_5
